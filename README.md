@@ -1,118 +1,170 @@
-# HTTP File Server Lab
+# HTTP File Server with Docker
 
-This lab implements a simple HTTP file server using TCP sockets in Python, with Docker containerization.
+![Python Version](https://img.shields.io/badge/python-3.9-blue.svg)
+![Docker](https://img.shields.io/badge/docker-enabled-2496ED?logo=docker)
 
-## Files Structure
+A lightweight HTTP file server implementation with Docker containerization. This server handles GET requests to serve HTML, PNG, and PDF files, along with automatic directory listing.
+
+## Features
+
+- **Pure Python Implementation:** Built using only standard libraries with TCP sockets
+- **Docker Ready:** Fully containerized for easy deployment
+- **Supported File Types:** HTML, PNG, PDF files
+- **Directory Browsing:** Auto-generated HTML listings of directories
+- **Security:** Path traversal protection and input validation
+- **Custom HTTP Client:** For downloading and viewing server content
+
+## 🚀 Quick Start
+
+### Docker Deployment (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/Nickseen/Docker_Practice.git
+cd Docker_Practice
+
+# Build and start the container
+docker-compose up --build -d
+
+# Access the server
+# http://localhost:8080/
+```
+
+### Local Deployment
+
+```bash
+# Clone the repository
+git clone https://github.com/Nickseen/Docker_Practice.git
+cd Docker_Practice
+
+# Run the server
+python file_server.py content/
+
+# Access the server
+# http://localhost:8080/
+```
+
+## 📁 Project Structure
 
 ```
 docker_practice/
-├── file_server.py          # Main HTTP server implementation
+├── file_server.py          # HTTP server implementation
 ├── client.py               # HTTP client for testing
 ├── Dockerfile              # Docker container configuration
 ├── docker-compose.yml      # Docker compose setup
-├── setup.sh               # Setup script
-├── content/               # Content directory to serve
-│   ├── index.html         # Main HTML page with image
+├── content/                # Content directory to serve
+│   ├── index.html          # Main HTML page
 │   ├── sample-document.pdf # Sample PDF file
-│   ├── readme.txt         # Text file
-│   ├── books/             # Subdirectory with books
+│   ├── books/              # Subdirectory with PDFs
 │   │   ├── programming-guide.pdf
 │   │   └── networking-book.pdf
-│   └── images/            # Images directory
-│       └── library.png    # PNG image file
+│   └── images/             # Images directory
+│       └── library.png     # PNG image file
 ```
 
-## Features Implemented
+## 🔧 Server Features
 
-✅ **Basic HTTP Server**
-- TCP socket implementation
-- HTTP/1.1 request parsing
-- GET method support
-- Proper HTTP response headers
+### File Serving
 
-✅ **File Type Support** 
-- HTML files (text/html)
-- PNG images (image/png)
-- PDF documents (application/pdf)
-- Plain text files (text/plain)
+The server supports the following file types:
 
-✅ **Directory Listing**
-- Automatic HTML generation for directories
-- Navigation with clickable links
-- Parent directory navigation (..)
+| File Type | MIME Type | Handling |
+|-----------|-----------|----------|
+| HTML | text/html | Served as text |
+| PNG | image/png | Served as binary |
+| PDF | application/pdf | Served as binary |
+| Unsupported | | Returns 404 Not Found |
 
-✅ **Error Handling**
-- 404 Not Found for missing files
-- 403 Forbidden for security violations
-- 400 Bad Request for malformed requests
-- 500 Internal Server Error for server issues
+### Directory Listing
 
-✅ **Security Features**
-- Path traversal attack prevention
-- Input validation and sanitization
+When a directory is requested, the server generates an HTML page with:
+- Links to all files and subdirectories
+- Navigation to parent directory
+- Visual distinction between files and directories
 
-✅ **HTTP Client**
-- Command-line HTTP client
-- File download capability
-- HTML content display
-- Binary file saving
+### Error Handling
 
-✅ **Docker Support**
-- Containerized server deployment
-- Volume mapping for content
-- Network configuration
+| Status Code | Description |
+|-------------|-------------|
+| 200 | OK - Resource found and delivered |
+| 400 | Bad Request - Malformed request |
+| 403 | Forbidden - Path traversal attempt detected |
+| 404 | Not Found - Resource doesn't exist or unsupported file type |
+| 405 | Method Not Allowed - Only GET is supported |
+| 500 | Internal Server Error - Server processing error |
 
-## Usage Instructions
+## 🖥️ Usage Instructions
 
-### Local Testing
+### Running the Server
+
 ```bash
-# Start server locally
-python3 file_server.py content/
+# Using Python directly
+python file_server.py content/
 
-# Test with browser
-curl http://localhost:8080/
-
-# Test client
-python3 client.py localhost 8080 /index.html downloads/
+# Using Docker
+docker-compose up --build -d
 ```
 
-### Docker Testing
+The server will listen on port 8080 by default.
+
+### HTTP Client Usage
+
+The included HTTP client allows for simple file downloads:
+
 ```bash
-# Build and start container
-docker-compose up --build
+# Syntax
+python client.py <host> <port> <resource> <save_directory>
 
-# Access server
-http://localhost:8080/
-
-# Test from another terminal
-python3 client.py localhost 8080 /books/ downloads/
+# Examples
+python client.py localhost 8080 /index.html downloads/
+python client.py localhost 8080 /images/library.png downloads/
+python client.py localhost 8080 /books/sample-document.pdf downloads/
 ```
 
-### Test Cases
-1. **404 Error**: `http://localhost:8080/nonexistent.html`
-2. **HTML with Image**: `http://localhost:8080/` 
-3. **PDF File**: `http://localhost:8080/sample-document.pdf`
-4. **PNG Image**: `http://localhost:8080/images/library.png`
-5. **Directory Listing**: `http://localhost:8080/books/`
-6. **Text File**: `http://localhost:8080/readme.txt`
+### Testing Specific Features
 
-## Network Testing
+| Test Case | URL | Expected Result |
+|-----------|-----|-----------------|
+| HTML Page | http://localhost:8080/index.html | Displays HTML content |
+| PNG Image | http://localhost:8080/images/library.png | Displays/downloads image |
+| PDF Document | http://localhost:8080/books/sample-document.pdf | Opens/downloads PDF |
+| Directory Listing | http://localhost:8080/books/ | Shows directory contents |
+| Unsupported Format | http://localhost:8080/scripts/app.js | Returns 404 error |
 
-To test with friends on local network:
+## 🌐 Network Sharing
 
-1. Find your IP address: `ip addr show`
-2. Start server: `python3 file_server.py content/`
-3. Friends access via: `http://YOUR_IP:8080/`
-4. Download files: `python3 client.py YOUR_IP 8080 /books/programming-guide.pdf downloads/`
+To share your server with friends on a local network:
 
-## Report Requirements Satisfied
+1. Find your local IP address:
+   ```powershell
+   ipconfig
+   ```
 
-- ✅ Source directory contents
-- ✅ Docker compose file and Dockerfile  
-- ✅ Container startup process
-- ✅ Server command with directory argument
-- ✅ Served directory contents
-- ✅ Browser tests: 404, HTML+image, PDF, PNG
-- ✅ HTTP client implementation and usage
-- ✅ Directory listing functionality
-- ✅ Network testing capability
+2. Open Windows Firewall for port 8080:
+   ```powershell
+   # Add inbound rule (run as administrator)
+   New-NetFirewallRule -DisplayName "HTTP File Server" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow
+   ```
+
+3. Share the URL with your friends:
+   ```
+   http://YOUR_IP:8080/
+   ```
+
+4. Friends can use the client to download files:
+   ```bash
+   python client.py YOUR_IP 8080 /index.html downloads/
+   ```
+
+## 📋 Implementation Requirements
+
+| Requirement | Status |
+|-------------|--------|
+| HTTP File Server | ✅ Implemented with Python sockets |
+| Specific File Type Support | ✅ HTML, PNG, PDF only |
+| Error Handling | ✅ Returns 404 for unsupported types |
+| Directory Listing | ✅ Generated HTML for navigation |
+| Docker Support | ✅ Containerized with docker-compose |
+| Network Sharing | ✅ Configurable for LAN access |
+| HTTP Client | ✅ Command-line client included |
+| Security | ✅ Path traversal protection |
