@@ -5,6 +5,46 @@
 
 A lightweight HTTP file server implementation with Docker containerization. This server handles GET requests to serve HTML, PNG, and PDF files, along with automatic directory listing.
 
+## 📷 Implementation and Testing
+
+### 🔨 Building Docker Container Locally
+
+Here's the process of building and running the Docker container on a local machine:
+
+![Building Docker Image](source/Code_2zQg3MpLZ8.png)
+*Building the Docker image from the Dockerfile*
+
+![Running Container](source/Code_8xMUQeMrOa.png)
+*Successfully running the container with docker-compose*
+
+### 📱 Testing on Local Network (Mobile Access)
+
+Testing the server's functionality through a mobile device connected to the same local network:
+
+1. **HTML Resource Test**
+   ![HTML Test](source/photo_1_2025-10-17_14-17-33.jpg)
+   *Successfully accessing and rendering HTML content*
+
+2. **PNG Image Test**
+   ![PNG Test](source/photo_2_2025-10-17_14-17-33.jpg)
+   *Loading and displaying PNG images correctly*
+
+3. **PDF Document Test**
+   ![PDF Test](source/photo_3_2025-10-17_14-17-33.jpg)
+   *Handling PDF files appropriately*
+
+4. **Directory Listing**
+   ![Directory](source/photo_4_2025-10-17_14-17-33.jpg)
+   *Showing directory contents with navigation*
+
+5. **Error Handling**
+   ![Error Test](source/photo_5_2025-10-17_14-17-33.jpg)
+   *Proper handling of unsupported file formats*
+
+6. **Network Connectivity**
+   ![Network Access](source/photo_6_2025-10-17_14-17-33.jpg)
+   *Successfully accessing server through local network*
+
 ## Features
 
 - **Pure Python Implementation:** Built using only standard libraries with TCP sockets

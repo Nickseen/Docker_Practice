@@ -7,7 +7,7 @@ import urllib.parse
 
 def main():
     if len(sys.argv) != 5:
-        print("Usage: python client.py server_hos~~t server_port url_path save_directory")
+        print("Usage: python client.py server_host server_port url_path save_directory")
         sys.exit(1)
     
     server_host = sys.argv[1]
