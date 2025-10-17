@@ -5,45 +5,41 @@
 
 A lightweight HTTP file server implementation with Docker containerization. This server handles GET requests to serve HTML, PNG, and PDF files, along with automatic directory listing.
 
-## 📷 Implementation and Testing
+## Building and Running with Docker
 
-### 🔨 Building Docker Container Locally
+Here's the step-by-step process of building and running the Docker container:
 
-Here's the process of building and running the Docker container on a local machine:
 
-![Building Docker Image](source/Code_2zQg3MpLZ8.png)
-*Building the Docker image from the Dockerfile*
+<img src="source/Code_2zQg3MpLZ8.png" width="400" />
+<img src="source/Code_8xMUQeMrOa.png" width="400" />
 
-![Running Container](source/Code_8xMUQeMrOa.png)
-*Successfully running the container with docker-compose*
+## Testing File Server Functionality
 
-### 📱 Testing on Local Network (Mobile Access)
+The file server was tested across different devices on the local network, demonstrating support for various file types:
 
-Testing the server's functionality through a mobile device connected to the same local network:
+### HTML Page Access
+<img src="source/photo_1_2025-10-17_14-17-33.jpg" width="200" />
 
-1. **HTML Resource Test**
-   ![HTML Test](source/photo_1_2025-10-17_14-17-33.jpg)
-   *Successfully accessing and rendering HTML content*
+### Image File Access
+<img src="source/photo_2_2025-10-17_14-17-33.jpg" width="200" />
 
-2. **PNG Image Test**
-   ![PNG Test](source/photo_2_2025-10-17_14-17-33.jpg)
-   *Loading and displaying PNG images correctly*
+### PDF File Access
+<img src="source/photo_3_2025-10-17_14-17-33.jpg" width="200" />
+<img src="source/photo_4_2025-10-17_14-17-33.jpg" width="200" />
 
-3. **PDF Document Test**
-   ![PDF Test](source/photo_3_2025-10-17_14-17-33.jpg)
-   *Handling PDF files appropriately*
+### HTML File Access
+<img src="source/photo_6_2025-10-17_14-17-33.jpg" width="200" />
 
-4. **Directory Listing**
-   ![Directory](source/photo_4_2025-10-17_14-17-33.jpg)
-   *Showing directory contents with navigation*
+### Error Handling
+<img src="source/photo_3_2025.jpg" width="200" />
+<img src="source/photo_5_2025-10-17_14-17-33.jpg" width="200" />
 
-5. **Error Handling**
-   ![Error Test](source/photo_5_2025-10-17_14-17-33.jpg)
-   *Proper handling of unsupported file formats*
+### File Download Script
+<img src="source/Code_HLaBDTehse.png" width="400" />
+<img src="source/Code_2oFhTVN1qD.png" width="400" />
+<img src="source/Code_RwD81ZtCZe.png" width="400" />
 
-6. **Network Connectivity**
-   ![Network Access](source/photo_6_2025-10-17_14-17-33.jpg)
-   *Successfully accessing server through local network*
+
 
 ## Features
 
@@ -180,18 +176,12 @@ To share your server with friends on a local network:
    ipconfig
    ```
 
-2. Open Windows Firewall for port 8080:
-   ```powershell
-   # Add inbound rule (run as administrator)
-   New-NetFirewallRule -DisplayName "HTTP File Server" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow
-   ```
-
-3. Share the URL with your friends:
+2. Share the URL with your friends:
    ```
    http://YOUR_IP:8080/
    ```
 
-4. Friends can use the client to download files:
+3. Friends can use the client to download files:
    ```bash
    python client.py YOUR_IP 8080 /index.html downloads/
    ```
