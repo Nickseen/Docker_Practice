@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Lab 2: File server with thread pool
+  file-server-lab2:
+    build:
+      context: .
+      dockerfile: Dockerfile.lab2
+    container_name: http-file-server-lab2
+    ports:
+      - "8080:8080"
+    environment:
+      - NUM_THREADS=4           # Number of worker threads
+      - WORK_DELAY=1            # Simulate work delay (seconds)
+    volumes:
+      - ./content:/app/content:ro  # Mount content directory as read-only
+    restart: unless-stopped
+    networks:
+      - lab2-network
+    
+  # Optional: Race condition demonstration (no locks)
+  file-server-lab2-race:
+    build:
+      context: .
+      dockerfile: Dockerfile.lab2
+    container_name: http-file-server-lab2-race
+    ports:
+      - "8081:8080"
+    command: python file_server_lab2.py content/ --threads 4 --no-locks
+    volumes:
+      - ./content:/app/content:ro
+    restart: unless-stopped
+    networks:
+      - lab2-network
+    profiles:
+      - race-condition
+
+  # Optional: Rate limiting demonstration
+  file-server-lab2-ratelimit:
+    build:
+      context: .
+      dockerfile: Dockerfile.lab2
+    container_name: http-file-server-lab2-ratelimit
+    ports:
+      - "8082:8080"
+    command: python file_server_lab2.py content/ --threads 4 --rate-limit 5
+    volumes:
+      - ./content:/app/content:ro
+    restart: unless-stopped
+    networks:
+      - lab2-network
+    profiles:
+      - rate-limit
+
+networks:
+  lab2-network:
+    driver: bridge
