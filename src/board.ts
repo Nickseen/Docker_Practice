@@ -4,6 +4,7 @@
 
 import assert from 'node:assert';
 import fs from 'node:fs';
+import { Card, CardPosition, CardState } from './types.js';
 
 /**
  * Mutable game board for Memory Scramble multiplayer game.
@@ -12,7 +13,6 @@ import fs from 'node:fs';
  * Players flip cards to find matching pairs. The board is safe for concurrent access
  * by multiple players.
  */
-
 export class Board {
 
     private readonly width: number;
