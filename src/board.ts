@@ -106,6 +106,18 @@ export class Board {
     }
 
     /**
+     * Get the positions of cards controlled by a player.
+     * 
+     * @param playerId ID of the player
+     * @returns array of card positions controlled by this player
+     */
+    private getPlayerCards(playerId: string): CardPosition[] {
+        return this.playerCards.get(playerId) || [];
+    }
+
+    
+
+    /**
      * Make a new board by parsing a file.
      * 
      * PS4 instructions: the specification of this method may not be changed.
