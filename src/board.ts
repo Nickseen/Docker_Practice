@@ -4,7 +4,7 @@
 
 import assert from 'node:assert';
 import fs from 'node:fs';
-import { Card, CardPosition, CardState } from './types.js';
+import { Card, CardPosition} from './types.js';
 
 /**
  * Mutable game board for Memory Scramble multiplayer game.
@@ -68,6 +68,42 @@ export class Board {
     }
 
     // TODO other methods
+
+    /**
+     * Returns the current state of the board from the perspective of a player.
+     * 
+     * @param playerId ID of the player viewing the board
+     * @returns string representation of the board
+     */
+    public look(playerId: string): string {
+        this.checkRep();
+        
+        let result = `${this.width}x${this.height}\n`;
+        
+        for (let row = 0; row < this.height; row++) {
+            for (let col = 0; col < this.width; col++) {
+                const card = this.cards[row]![col];
+                assert(card !== undefined);
+
+                if (card.state === 'none') {
+                    // Карта удалена
+                    result += 'none\n';
+                } else if (card.controlledBy === playerId) {
+                    // Карта под контролем этого игрока
+                    result += `my ${card.label}\n`;
+                } else if (card.state === 'up') {
+                    // Карта открыта (видна всем)
+                    result += `up ${card.label}\n`;
+                } else {
+                    // Карта закрыта
+                    result += 'down\n';
+                }
+            }
+        }
+        
+        this.checkRep();
+        return result.trim();
+    }
 
     /**
      * Make a new board by parsing a file.

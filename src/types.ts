@@ -2,7 +2,7 @@
  * Redistribution of original or derived work requires permission of course staff.
  */
 
-export type CardState = 'down' | 'up' | 'none';
+type CardState = 'down' | 'up' | 'none';
 
 export interface Card {
     label: string;
