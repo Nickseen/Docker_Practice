@@ -189,6 +189,39 @@ export class Board {
         this.checkRep();
         return this.look(playerId);
     }
+    
+    /**
+     * Notify all watching players that the board has changed.
+     */
+    private notifyWatchers(): void {
+        for (const resolve of this.watchers) {
+            resolve();
+        }
+        this.watchers.clear();
+    }
+
+    /**
+     * Wait for the board to change, then return the updated state.
+     * 
+     * @param playerId ID of the player watching
+     * @returns the new state of the board after a change occurs
+     */
+    public async watch(playerId: string): Promise<string> {
+        this.checkRep();
+        
+        // Создаём Promise, который выполнится при следующем изменении
+        const { promise, resolve } = Promise.withResolvers<void>();
+        
+        // Сохраняем resolve в список ожидающих
+        this.watchers.add(resolve);
+        
+        // Ждём изменения
+        await promise;
+        
+        // Возвращаем обновлённое состояние
+        this.checkRep();
+        return this.look(playerId);
+    }
 
     /**
      * Make a new board by parsing a file.
