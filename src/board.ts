@@ -47,6 +47,14 @@ export class Board {
     //   - внешний код не может получить доступ к cards, playerCards, watchers
 
     // TODO constructor
+    private constructor(width: number, height: number, cards: Card[][]) {
+    this.width = width;
+    this.height = height;
+    this.cards = cards;
+    this.playerCards = new Map();
+    this.watchers = new Set();
+    this.checkRep();
+}
 
     // TODO checkRep
 
