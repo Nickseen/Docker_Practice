@@ -146,6 +146,8 @@ export class Board {
                     if (card.state !== 'none') {
                         card.state = 'none';
                         card.controlledBy = null;
+                        // Пробуждаем игроков, ждущих эту карту
+                        this.wakeUpWaitingPlayers(pos);
                     }
                 }
             } else {
@@ -171,9 +173,10 @@ export class Board {
 
         // Правило 1-A и 2-A: карта не существует
         if (card.state === 'none') {
-            // Если у игрока была первая карта, освобождаем её (правило 2-A)
             const myCards = this.getPlayerCards(playerId);
+            
             if (myCards.length === 1) {
+                // Правило 2-A: У игрока была первая карта, освобождаем её
                 const firstPos = myCards[0]!;
                 const firstCard = this.cards[firstPos.row]![firstPos.column];
                 assert(firstCard !== undefined);
@@ -182,6 +185,12 @@ export class Board {
                 this.previousCards.set(playerId, { positions: [firstPos], matched: false });
                 this.playerCards.delete(playerId);
                 this.notifyWatchers();
+                throw new Error('card does not exist');
+            } else if (myCards.length === 0) {
+                // Правило 1-A: Игрок ждал эту карту как первую, но она исчезла
+                // Это нормальная ситуация - просто возвращаем текущее состояние доски
+                this.checkRep();
+                return this.look(playerId);
             }
             throw new Error('card does not exist');
         }
