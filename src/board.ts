@@ -1,0 +1,67 @@
+/* Copyright (c) 2021-25 MIT 6.102/6.031 course staff, all rights reserved.
+ * Redistribution of original or derived work requires permission of course staff.
+ */
+
+import assert from 'node:assert';
+import fs from 'node:fs';
+
+/**
+ * Mutable game board for Memory Scramble multiplayer game.
+ * 
+ * Board represents a rectangular grid of cards that can be flipped by multiple players.
+ * Players flip cards to find matching pairs. The board is safe for concurrent access
+ * by multiple players.
+ */
+
+export class Board {
+
+    private readonly width: number;
+    private readonly height: number;
+    private readonly cards: Card[][]; // двумерный массив карт
+    private readonly playerCards: Map<string, CardPosition[]>; // карты под контролем игроков
+    private readonly watchers: Set<() => void>; // кто ждёт изменений (для watch)
+
+
+    // Abstraction function:
+    //   AF(width, height, cards, playerCards, watchers) = 
+    //     Игровая доска Memory Scramble размером width × height клеток,
+    //     где cards[row][col] представляет карту в позиции (row, col).
+    //     playerCards отображает каждого игрока на список позиций карт,
+    //     которые этот игрок в данный момент контролирует.
+    //     watchers - набор функций, ожидающих уведомления об изменении доски.
+        
+    // Representation invariant:
+    //   - width > 0 и height > 0
+    //   - cards - прямоугольный массив размером height × width
+    //   - cards[row][col].state ∈ {'down', 'up', 'none'} для всех row, col
+    //   - каждый игрок контролирует 0, 1 или 2 карты
+    //   - если карта контролируется игроком, то она существует (state ≠ 'none')
+    //   - никакая карта не контролируется более чем одним игроком
+    //   - все позиции в playerCards указывают на существующие клетки доски
+    
+    // Safety from rep exposure:
+    //   - все поля объявлены как private и/или readonly
+    //   - конструктор приватный, создание только через parseFromFile
+    //   - метод look() возвращает строку (immutable), а не ссылку на cards
+    //   - метод flip() не возвращает ссылки на внутренние структуры
+    //   - внешний код не может получить доступ к cards, playerCards, watchers
+
+    // TODO constructor
+
+    // TODO checkRep
+
+    // TODO other methods
+
+    /**
+     * Make a new board by parsing a file.
+     * 
+     * PS4 instructions: the specification of this method may not be changed.
+     * 
+     * @param filename path to game board file
+     * @returns a new board with the size and cards from the file
+     * @throws Error if the file cannot be read or is not a valid game board
+     */
+    public static async parseFromFile(filename: string): Promise<Board> {
+        return new Board(); // TODO: implement this
+    }
+}
