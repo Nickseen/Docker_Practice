@@ -57,6 +57,15 @@ export class Board {
     }
 
     // TODO checkRep
+    private checkRep(): void {
+        assert(this.width > 0 && this.height > 0);
+        assert(this.cards.length === this.height);
+        assert(this.cards.every(row => row.length === this.width));
+        // проверка, что каждый игрок контролирует максимум 2 карты
+        for (const positions of this.playerCards.values()) {
+            assert(positions.length <= 2);
+        }
+    }
 
     // TODO other methods
 
