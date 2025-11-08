@@ -115,7 +115,80 @@ export class Board {
         return this.playerCards.get(playerId) || [];
     }
 
-    
+    /**
+     * Flip a card on the board.
+     * 
+     * @param playerId ID of the player flipping the card
+     * @param row row of the card
+     * @param column column of the card
+     * @returns updated board state from player's perspective
+     * @throws Error if flip is invalid
+     */
+    public flip(playerId: string, row: number, column: number): string {
+        this.checkRep();
+        
+        // Проверка границ
+        if (row < 0 || row >= this.height || column < 0 || column >= this.width) {
+            throw new Error('card position out of bounds');
+        }
+
+        const card = this.cards[row]![column];
+        assert(card !== undefined);
+
+        // Проверка: карта существует
+        if (card.state === 'none') {
+            throw new Error('card does not exist');
+        }
+        
+        // Проверка: карта не занята другим игроком
+        if (card.controlledBy !== null && card.controlledBy !== playerId) {
+            throw new Error('card is controlled by another player');
+        }
+        
+        const myCards = this.getPlayerCards(playerId);
+        
+        // Проверка: не контролирую больше 2 карт
+        if (myCards.length >= 2) {
+            throw new Error('you already control 2 cards');
+        }
+        
+        // Логика флипа
+        if (myCards.length === 0) {
+            // Первая карта - беру под контроль
+            card.controlledBy = playerId;
+            card.state = 'up';
+            this.playerCards.set(playerId, [{ row, column }]);
+            
+        } else if (myCards.length === 1) {
+            // Вторая карта - проверяю совпадение
+            const firstPos = myCards[0]!;
+            const firstCard = this.cards[firstPos.row]![firstPos.column];
+            assert(firstCard !== undefined);
+            
+            card.controlledBy = playerId;
+            card.state = 'up';
+            
+            // Проверка совпадения меток
+            if (firstCard.label === card.label) {
+                // Совпадение - удаляем обе карты
+                firstCard.state = 'none';
+                card.state = 'none';
+            } else {
+                // Не совпадают - закрываем обе
+                firstCard.state = 'down';
+                card.state = 'down';
+            }
+            
+            // Освобождаем контроль
+            firstCard.controlledBy = null;
+            card.controlledBy = null;
+            this.playerCards.delete(playerId);
+        }
+        
+        this.notifyWatchers(); // TODO for watch()
+        this.checkRep();
+        return this.look(playerId);
+    }
 
     /**
      * Make a new board by parsing a file.
