@@ -79,6 +79,43 @@ export class Board {
      * @throws Error if the file cannot be read or is not a valid game board
      */
     public static async parseFromFile(filename: string): Promise<Board> {
-        return new Board(); // TODO: implement this
+        const content = await fs.promises.readFile(filename, 'utf-8');
+        const lines = content.trim().split('\n');
+        if (lines.length === 0 || !lines[0]) {
+            throw new Error('empty board file');
+        }
+        
+        // Парсим размер
+        const [widthStr, heightStr] = lines[0].split('x');
+        if (!widthStr || !heightStr) {
+            throw new Error('invalid board format: expected WxH');
+        }
+        const width = parseInt(widthStr);
+        const height = parseInt(heightStr);
+        
+        // Читаем карты
+        const cardLabels = lines.slice(1); // все строки кроме первой
+        
+        // Создаём двумерный массив
+        const cards: Card[][] = [];
+        let index = 0;
+        for (let row = 0; row < height; row++) {
+            const cardRow: Card[] = [];
+            for (let col = 0; col < width; col++) {
+                const label = cardLabels[index];
+                if (!label) {
+                    throw new Error('not enough card labels in board file');
+                }
+                cardRow.push({
+                    label: label.trim(),
+                    state: 'down',
+                    controlledBy: null
+                });
+                index++;
+            }
+            cards.push(cardRow);
+        }
+        
+        return new Board(width, height, cards);
     }
 }
