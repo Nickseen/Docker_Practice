@@ -19,25 +19,32 @@ export class Board {
     private readonly height: number;
     private readonly cards: Card[][]; // двумерный массив карт
     private readonly playerCards: Map<string, CardPosition[]>; // карты под контролем игроков
+    private readonly previousCards: Map<string, { positions: CardPosition[], matched: boolean }>; // предыдущие карты игрока для правил 3-A/3-B
     private readonly watchers: Set<() => void>; // кто ждёт изменений (для watch)
+    private readonly waitingForCard: Map<string, { resolve: () => void, position: CardPosition }[]>; // игроки, ждущие карту (правило 1-D)
 
 
     // Abstraction function:
-    //   AF(width, height, cards, playerCards, watchers) = 
+    //   AF(width, height, cards, playerCards, previousCards, watchers, waitingForCard) = 
     //     Игровая доска Memory Scramble размером width × height клеток,
     //     где cards[row][col] представляет карту в позиции (row, col).
     //     playerCards отображает каждого игрока на список позиций карт,
-    //     которые этот игрок в данный момент контролирует.
+    //     которые этот игрок в данный момент контролирует (0, 1 или 2 карты).
+    //     previousCards отображает игрока на его предыдущие 1-2 карты и флаг matched,
+    //     указывающий, совпали ли они (для применения правил 3-A/3-B при следующем ходе).
     //     watchers - набор функций, ожидающих уведомления об изменении доски.
+    //     waitingForCard отображает позицию карты на список игроков, ожидающих её освобождения (правило 1-D).
         
     // Representation invariant:
     //   - width > 0 и height > 0
     //   - cards - прямоугольный массив размером height × width
     //   - cards[row][col].state ∈ {'down', 'up', 'none'} для всех row, col
     //   - каждый игрок контролирует 0, 1 или 2 карты
-    //   - если карта контролируется игроком, то она существует (state ≠ 'none')
+    //   - если карта контролируется игроком, то она существует (state ≠ 'none') и state = 'up'
     //   - никакая карта не контролируется более чем одним игроком
-    //   - все позиции в playerCards указывают на существующие клетки доски
+    //   - все позиции в playerCards и previousCards указывают на существующие клетки доски
+    //   - если игрок в previousCards, то он имеет 1 или 2 позиции
+    //   - если previousCards[player].matched = true, то позиций ровно 2
     
     // Safety from rep exposure:
     //   - все поля объявлены как private и/или readonly
@@ -52,7 +59,9 @@ export class Board {
     this.height = height;
     this.cards = cards;
     this.playerCards = new Map();
+    this.previousCards = new Map();
     this.watchers = new Set();
+    this.waitingForCard = new Map();
     this.checkRep();
     }
 
@@ -124,10 +133,35 @@ export class Board {
      * @returns updated board state from player's perspective
      * @throws Error if flip is invalid
      */
-    public flip(playerId: string, row: number, column: number): string {
+    public async flip(playerId: string, row: number, column: number): Promise<string> {
         this.checkRep();
         
-        // Проверка границ
+        const previous = this.previousCards.get(playerId);
+        if (previous) {
+            if (previous.matched) {
+                // Правило 3-A: удаляем совпавшие карты
+                for (const pos of previous.positions) {
+                    const card = this.cards[pos.row]![pos.column];
+                    assert(card !== undefined);
+                    if (card.state !== 'none') {
+                        card.state = 'none';
+                        card.controlledBy = null;
+                    }
+                }
+            } else {
+                // Правило 3-B: закрываем несовпавшие карты 
+                for (const pos of previous.positions) {
+                    const card = this.cards[pos.row]![pos.column];
+                    assert(card !== undefined);
+                    if (card.state === 'up' && card.controlledBy === null) {
+                        card.state = 'down';
+                    }
+                }
+            }
+            this.previousCards.delete(playerId);
+            this.notifyWatchers();
+        }
+        
         if (row < 0 || row >= this.height || column < 0 || column >= this.width) {
             throw new Error('card position out of bounds');
         }
@@ -135,57 +169,129 @@ export class Board {
         const card = this.cards[row]![column];
         assert(card !== undefined);
 
-        // Проверка: карта существует
+        // Правило 1-A и 2-A: карта не существует
         if (card.state === 'none') {
+            // Если у игрока была первая карта, освобождаем её (правило 2-A)
+            const myCards = this.getPlayerCards(playerId);
+            if (myCards.length === 1) {
+                const firstPos = myCards[0]!;
+                const firstCard = this.cards[firstPos.row]![firstPos.column];
+                assert(firstCard !== undefined);
+                firstCard.controlledBy = null;
+                // Карта остаётся face-up (сохраняем в previousCards)
+                this.previousCards.set(playerId, { positions: [firstPos], matched: false });
+                this.playerCards.delete(playerId);
+                this.notifyWatchers();
+            }
             throw new Error('card does not exist');
         }
         
-        // Проверка: карта не занята другим игроком
+        // Правило 1-D: Карта занята другим игроком - ЖДАТЬ
         if (card.controlledBy !== null && card.controlledBy !== playerId) {
-            throw new Error('card is controlled by another player');
+            const myCards = this.getPlayerCards(playerId);
+            
+            // Правило 2-B: если это вторая карта, провал + освобождение первой
+            if (myCards.length === 1) {
+                const firstPos = myCards[0]!;
+                const firstCard = this.cards[firstPos.row]![firstPos.column];
+                assert(firstCard !== undefined);
+                firstCard.controlledBy = null;
+                // Карта остаётся face-up (сохраняем в previousCards)
+                this.previousCards.set(playerId, { positions: [firstPos], matched: false });
+                this.playerCards.delete(playerId);
+                this.notifyWatchers();
+                throw new Error('card is controlled by another player');
+            }
+            
+            // Правило 1-D: ждём освобождения карты
+            const { promise, resolve } = Promise.withResolvers<void>();
+            const position = { row, column };
+            
+            // Сохраняем ожидающего
+            const key = `${row},${column}`;
+            if (!this.waitingForCard.has(key)) {
+                this.waitingForCard.set(key, []);
+            }
+            this.waitingForCard.get(key)!.push({ resolve, position });
+            
+            // Ждём освобождения
+            await promise;
+            
+            // После пробуждения повторяем попытку (рекурсия)
+            return this.flip(playerId, row, column);
         }
         
         const myCards = this.getPlayerCards(playerId);
         
-        // Проверка: не контролирую больше 2 карт
+        // Проверка: не больше 2 карт
         if (myCards.length >= 2) {
             throw new Error('you already control 2 cards');
         }
         
-        // Логика флипа
+        // ПЕРВАЯ КАРТА
         if (myCards.length === 0) {
-            // Первая карта - беру под контроль
+            // Правило 1-B или 1-C: беру карту под контроль
             card.controlledBy = playerId;
             card.state = 'up';
             this.playerCards.set(playerId, [{ row, column }]);
             
-        } else if (myCards.length === 1) {
-            // Вторая карта - проверяю совпадение
+            this.notifyWatchers();
+            this.checkRep();
+            return this.look(playerId);
+        }
+        
+        // ВТОРАЯ КАРТА
+        if (myCards.length === 1) {
             const firstPos = myCards[0]!;
+            
+            // Проверка: нельзя флипнуть ту же карту дважды
+            if (firstPos.row === row && firstPos.column === column) {
+                throw new Error('cannot flip the same card twice');
+            }
+            
             const firstCard = this.cards[firstPos.row]![firstPos.column];
             assert(firstCard !== undefined);
             
+            // Правило 2-C: переворачиваем вторую карту
             card.controlledBy = playerId;
             card.state = 'up';
             
-            // Проверка совпадения меток
-            if (firstCard.label === card.label) {
-                // Совпадение - удаляем обе карты
-                firstCard.state = 'none';
-                card.state = 'none';
+            this.notifyWatchers();
+            
+            // Проверка совпадения
+            const matched = (firstCard.label === card.label);
+            
+            if (matched) {
+                // Правило 2-D: совпадение - оставляем под контролем, карты face-up
+                // Карты будут удалены при следующем ходе (правило 3-A)
+                this.previousCards.set(playerId, { 
+                    positions: [firstPos, { row, column }], 
+                    matched: true 
+                });
             } else {
-                // Не совпадают - закрываем обе
-                firstCard.state = 'down';
-                card.state = 'down';
+                // Правило 2-E: не совпадают - освобождаем контроль, оставляем face-up
+                firstCard.controlledBy = null;
+                card.controlledBy = null;
+                
+                // Пробуждаем ждущих игроков для обеих карт
+                this.wakeUpWaitingPlayers(firstPos);
+                this.wakeUpWaitingPlayers({ row, column });
+                
+                // Карты останутся face-up и будут закрыты при следующем ходе (правило 3-B)
+                this.previousCards.set(playerId, { 
+                    positions: [firstPos, { row, column }], 
+                    matched: false 
+                });
             }
             
-            // Освобождаем контроль
-            firstCard.controlledBy = null;
-            card.controlledBy = null;
+            // Освобождаем текущий контроль
             this.playerCards.delete(playerId);
+            
+            this.notifyWatchers();
+            this.checkRep();
+            return this.look(playerId);
         }
         
-        this.notifyWatchers(); // TODO for watch()
         this.checkRep();
         return this.look(playerId);
     }
@@ -198,6 +304,29 @@ export class Board {
             resolve();
         }
         this.watchers.clear();
+    }
+    
+    /**
+     * Wake up players waiting for a specific card position to become available.
+     * 
+     * @param position the card position that became available
+     */
+    private wakeUpWaitingPlayers(position: CardPosition): void {
+        const key = `${position.row},${position.column}`;
+        const waiting = this.waitingForCard.get(key);
+        
+        if (waiting && waiting.length > 0) {
+            // Пробуждаем одного ждущего игрока (FIFO)
+            const first = waiting.shift();
+            if (first) {
+                first.resolve();
+            }
+            
+            // Если очередь пуста, удаляем ключ
+            if (waiting.length === 0) {
+                this.waitingForCard.delete(key);
+            }
+        }
     }
 
     /**
