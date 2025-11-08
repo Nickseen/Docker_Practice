@@ -54,7 +54,7 @@ export class Board {
     this.playerCards = new Map();
     this.watchers = new Set();
     this.checkRep();
-}
+    }
 
     // TODO checkRep
 
