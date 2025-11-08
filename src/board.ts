@@ -224,6 +224,54 @@ export class Board {
     }
 
     /**
+     * Replace all cards on the board by applying a function to each card label.
+     * Maintains pairwise consistency during replacement.
+     * 
+     * @param playerId ID of the player applying the map
+     * @param f function to apply to each card label
+     * @returns the state of the board after replacement
+     */
+    public async map(playerId: string, f: (card: string) => Promise<string>): Promise<string> {
+        this.checkRep();
+        
+        // Собираем все уникальные значения карт
+        const uniqueLabels = new Set<string>();
+        for (let row = 0; row < this.height; row++) {
+            for (let col = 0; col < this.width; col++) {
+                const card = this.cards[row]![col];
+                assert(card !== undefined);
+                if (card.state !== 'none') {
+                    uniqueLabels.add(card.label);
+                }
+            }
+        }
+        
+        // Вычисляем новые значения для каждой уникальной метки
+        const mapping = new Map<string, string>();
+        for (const label of uniqueLabels) {
+            mapping.set(label, await f(label));
+        }
+        
+        // Применяем замену АТОМАРНО (все сразу)
+        for (let row = 0; row < this.height; row++) {
+            for (let col = 0; col < this.width; col++) {
+                const card = this.cards[row]![col];
+                assert(card !== undefined);
+                if (card.state !== 'none') {
+                    const newLabel = mapping.get(card.label);
+                    if (newLabel !== undefined) {
+                        card.label = newLabel;
+                    }
+                }
+            }
+        }
+        
+        this.notifyWatchers();
+        this.checkRep();
+        return this.look(playerId);
+    }
+
+    /**
      * Make a new board by parsing a file.
      * 
      * PS4 instructions: the specification of this method may not be changed.
