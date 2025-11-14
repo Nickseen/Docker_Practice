@@ -67,12 +67,64 @@ export class Board {
 
     // TODO checkRep
     private checkRep(): void {
-        assert(this.width > 0 && this.height > 0);
-        assert(this.cards.length === this.height);
-        assert(this.cards.every(row => row.length === this.width));
-        // проверка, что каждый игрок контролирует максимум 2 карты
-        for (const positions of this.playerCards.values()) {
-            assert(positions.length <= 2);
+        // Проверка размеров доски
+        assert(this.width > 0 && this.height > 0, 'board dimensions must be positive');
+        assert(this.cards.length === this.height, 'cards array height mismatch');
+        assert(this.cards.every(row => row.length === this.width), 'cards array width mismatch');
+        
+        // Проверка состояний карт
+        for (let row = 0; row < this.height; row++) {
+            for (let col = 0; col < this.width; col++) {
+                const card = this.cards[row]![col];
+                assert(card !== undefined, `missing card at (${row},${col})`);
+                assert(['down', 'up', 'none'].includes(card.state), `invalid card state: ${card.state}`);
+                
+                // Если карта контролируется, она должна быть 'up' и существовать
+                if (card.controlledBy !== null) {
+                    assert(card.state === 'up', `controlled card must be face-up at (${row},${col})`);
+                }
+            }
+        }
+        
+        // Проверка контроля игроков
+        const controlledCards = new Set<string>();
+        for (const [playerId, positions] of this.playerCards.entries()) {
+            // Каждый игрок контролирует 0-2 карты
+            assert(positions.length <= 2, `player ${playerId} controls too many cards`);
+            
+            for (const pos of positions) {
+                // Позиция в пределах доски
+                assert(pos.row >= 0 && pos.row < this.height, 'position row out of bounds');
+                assert(pos.column >= 0 && pos.column < this.width, 'position column out of bounds');
+                
+                const card = this.cards[pos.row]![pos.column];
+                assert(card !== undefined);
+                
+                // Карта должна быть контролируема этим игроком
+                assert(card.controlledBy === playerId, 
+                    `player ${playerId} claims control but card controlled by ${card.controlledBy}`);
+                
+                // Карта не контролируется несколькими игроками
+                const key = `${pos.row},${pos.column}`;
+                assert(!controlledCards.has(key), `card at (${pos.row},${pos.column}) controlled by multiple players`);
+                controlledCards.add(key);
+            }
+        }
+        
+        // Проверка previousCards
+        for (const [playerId, prev] of this.previousCards.entries()) {
+            assert(prev.positions.length >= 1 && prev.positions.length <= 2, 
+                `player ${playerId} has invalid previousCards count`);
+            
+            if (prev.matched) {
+                assert(prev.positions.length === 2, 'matched cards must be exactly 2');
+            }
+            
+            // Все позиции валидны
+            for (const pos of prev.positions) {
+                assert(pos.row >= 0 && pos.row < this.height, 'previousCards position row out of bounds');
+                assert(pos.column >= 0 && pos.column < this.width, 'previousCards position column out of bounds');
+            }
         }
     }
 
@@ -162,10 +214,6 @@ export class Board {
             }
             this.previousCards.delete(playerId);
             this.notifyWatchers();
-        }
-        
-        if (row < 0 || row >= this.height || column < 0 || column >= this.width) {
-            throw new Error('card position out of bounds');
         }
 
         const card = this.cards[row]![column];
