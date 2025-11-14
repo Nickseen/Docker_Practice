@@ -10,7 +10,7 @@
     "start": "tsc && node --require source-map-support/register dist/src/server.js",
     "simulation": "tsc && node --require source-map-support/register dist/src/simulation.js",
     "lint": "tsc && eslint",
-    "test": "tsc || exit ; eslint ; mocha --require source-map-support/register dist/test",
+    "test": "tsc && mocha --require source-map-support/register dist/test",
     "coverage": "c8 npm test"
   },
   "mocha": {
