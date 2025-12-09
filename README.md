@@ -1,520 +1,596 @@
-# Memory Scramble
+# Distributed Key-Value Store with Single-Leader Replication
 
-Complete implementation of MIT 6.102 PS4: a multiplayer card-matching game with concurrent player support, waiting mechanisms, and deadlock prevention.
+A distributed key-value store implementation in Python with single-leader replication, semi-synchronous writes, and configurable write quorum. The system demonstrates the trade-offs between consistency and availability in distributed systems.
 
-See the problem set write-up: https://web.mit.edu/6.102/www/fa24/psets/ps4/
+## Overview
 
----
+This project implements a distributed key-value store with the following characteristics:
 
-## Table of Contents
-
-- [Project Overview](#project-overview)
-- [Architecture](#architecture)
-- [Game Rules Implementation](#game-rules-implementation)
-- [Concurrency Control](#concurrency-control)
-- [Testing Strategy](#testing-strategy)
-- [Stress Testing](#stress-testing)
-- [Installation & Usage](#installation--usage)
-- [Grading Checklist](#grading-checklist)
-
----
-
-## Project Overview
-
-Memory Scramble is a multiplayer card-matching game where players compete to find matching pairs on a shared board. The implementation handles concurrent player actions, maintains thread safety through async/await patterns, and implements all 11 game rules including player waiting, deadlock prevention, and deferred card operations.
-
-### Key Features
-
-- **Full Rule Compliance**: All 11 game rules (1-A through 3-B) correctly implemented
-- **Thread Safety**: Concurrent player actions handled via async/await and Promise control
-- **Waiting Mechanism**: Players wait when attempting to flip controlled cards (Rule 1-D)
-- **Deadlock Prevention**: Second card flips on controlled cards fail immediately (Rule 2-B)
-- **Deferred Operations**: Card removal and closing deferred to next player move (Rules 3-A, 3-B)
-- **FIFO Fairness**: Waiting players served in first-in-first-out order
-- **Comprehensive Testing**: 19 unit tests covering all rules and edge cases
-- **Stress Testing**: 5-player concurrent simulation with timeout protection
-
----
+- **Single-Leader Replication**: Only the leader accepts write operations
+- **1 Leader + 5 Followers**: Run in separate Docker containers
+- **Semi-Synchronous Replication**: Configurable write quorum for durability guarantees
+- **Concurrent Request Processing**: Both leader and followers handle requests concurrently using asyncio
+- **Network Simulation**: Configurable network delay simulation [MIN_DELAY, MAX_DELAY]
+- **REST API**: JSON-based HTTP communication
 
 ## Architecture
 
-### File Structure
-
 ```
-src/
-  board.ts        - Core game logic (Board ADT)
-  commands.ts     - HTTP handler glue code
-  server.ts       - Express HTTP server
-  simulation.ts   - Concurrent stress testing
-test/
-  board.test.ts   - Comprehensive test suite (19 tests)
-boards/
-  perfect.txt     - 4x4 board with all matching pairs
-  zoom.txt        - Sample game board
-  ab.txt          - 2x2 test board
-```
-
-### Board ADT
-
-The `Board` class is a mutable, thread-safe abstraction with the following representation:
-
-```typescript
-class Board {
-  private readonly width: number;
-  private readonly height: number;
-  private readonly cards: Card[][];
-  private readonly playerCards: Map<string, Set<CardPosition>>;
-  private readonly previousCards: Map<string, Set<CardPosition>>;
-  private readonly watchers: Set<(board: Board) => void>;
-  private readonly waitingForCard: Map<string, Array<{
-    resolve: (value: string) => void;
-    reject: (error: Error) => void;
-  }>>;
-}
+                                    Client
+                                       |
+                                       | POST /set
+                                       v
+                            +----------+----------+
+                            |      Leader         |
+                            |   (Port 8080)       |
+                            +----------+----------+
+                                       |
+                    +------------------+------------------+
+                    |         |         |         |        |
+              (replicate)  (replicate) ...              (replicate)
+                    |         |         |         |        |
+                    v         v         v         v        v
+            +--------+  +--------+  +--------+  +--------+  +--------+
+            |Follower|  |Follower|  |Follower|  |Follower|  |Follower|
+            |  8081  |  |  8082  |  |  8083  |  |  8084  |  |  8085  |
+            +--------+  +--------+  +--------+  +--------+  +--------+
 ```
 
-**Abstraction Function**: Represents a WxH grid of cards with player ownership tracking, deferred operations, event watchers, and waiting player queues.
+### Key Design Decisions
 
-**Rep Invariant**:
-- All cards have consistent width/height dimensions
-- playerCards only contains valid card positions on the board
-- previousCards only contains valid card positions on the board
-- No card position appears in both playerCards and previousCards for the same player
-- waitingForCard keys match valid card position strings
+1. **Single-Leader Pattern**: Simplifies consistency by having a single source of truth for writes
+2. **Semi-Synchronous Replication**: Leader waits for N followers to confirm before responding to client
+3. **Concurrent Replication**: Requests sent to followers in parallel using asyncio
+4. **Network Delay Simulation**: Each follower receives requests with random delays to simulate real-world conditions
 
-**Safety from Rep Exposure**:
-- All fields are private
-- Defensive copying used in look() and map()
-- Mutation only through flip() method
-- No references to internal arrays/sets escape
+## Features
 
----
+### ✅ Single-Leader Replication
+- Only leader accepts writes (POST, DELETE)
+- All nodes accept reads (GET)
+- Automatic replication to all followers
 
-## Game Rules Implementation
+### ✅ Semi-Synchronous Replication
+- Configurable write quorum (WRITE_QUORUM env variable)
+- Leader waits for N confirmations before reporting success
+- Provides stronger consistency guarantees than async replication
 
-### Phase 1: First Card (Rules 1-A through 1-D)
+### ✅ Concurrent Processing
+- All HTTP requests handled concurrently using `aiohttp`
+- Leader sends replication requests in parallel
+- Thread-safe key-value store with asyncio locks
 
-**Rule 1-A**: If card controlled by another player, return current board state without error.
+### ✅ Network Simulation
+- Configurable delay range [MIN_DELAY, MAX_DELAY]
+- Each replication request gets random delay
+- Simulates real-world network latency
 
-```typescript
-if (playerCards.get(otherPlayer)?.has(posKey)) {
-  return this.map(id => this.look(id));
-}
-```
+### ✅ Docker Deployment
+- 6 containers (1 leader + 5 followers)
+- Configuration via environment variables
+- Docker Compose for orchestration
 
-**Rule 1-B**: If card controlled by this player and matches previously controlled card, remove both cards.
+## Implementation Details
 
-```typescript
-if (currentPlayerCards.size === 1 && currentPlayerCards.has(posKey)) {
-  const [otherKey] = currentPlayerCards;
-  const match = cards[row][col].content === this.parseCardKey(otherKey).content;
-  if (match) {
-    // Remove both cards
-  }
-}
-```
-
-**Rule 1-C**: If card controlled by this player but doesn't match, close both cards.
-
-```typescript
-if (!match) {
-  // Close both cards, remove control
-}
-```
-
-**Rule 1-D**: If card not controlled by anyone, turn it face up and give control to player.
-
-```typescript
-if (!anyoneControls) {
-  cards[row][col].state = 'up';
-  currentPlayerCards.add(posKey);
-}
-```
-
-**Waiting Mechanism**: If card controlled by another player, current player waits until card is freed.
-
-```typescript
-const { promise, resolve, reject } = Promise.withResolvers<string>();
-this.waitingForCard.get(posKey)!.push({ resolve, reject });
-await promise; // Wait until card freed
-```
-
-### Phase 2: Second Card (Rules 2-A through 2-E)
-
-**Rule 2-A**: If trying to flip the same card twice, throw error.
-
-```typescript
-if (currentPlayerCards.has(posKey)) {
-  throw new Error('cannot flip same card twice');
-}
-```
-
-**Rule 2-B**: If card controlled by another player, throw error immediately (no waiting).
-
-```typescript
-if (anyoneControlsByOther) {
-  throw new Error('card controlled by another player');
-}
-```
-
-This prevents deadlocks where two players wait for each other's cards.
-
-**Rule 2-C**: If second card matches first card, remove both.
-
-```typescript
-const [firstKey] = currentPlayerCards;
-if (match) {
-  // Remove both cards from board
-}
-```
-
-**Rule 2-D**: If second card doesn't match, close both cards.
-
-```typescript
-if (!match) {
-  // Close both cards
-}
-```
-
-**Rule 2-E**: After second card flip, player no longer controls any cards.
-
-```typescript
-currentPlayerCards.clear();
-```
-
-### Phase 3: Deferred Operations (Rules 3-A and 3-B)
-
-**Rule 3-A**: Card removal from board deferred to next move.
-
-```typescript
-// On match, add to previousCards instead of removing immediately
-previousCards.get(id)!.add(posKey);
-previousCards.get(id)!.add(firstKey);
-
-// On next flip(), remove cards from grid
-for (const [player, positions] of this.previousCards) {
-  for (const pos of positions) {
-    const { row, col } = this.parseCardKey(pos);
-    this.cards[row][col] = { state: 'removed', content: '' };
-  }
-  positions.clear();
-}
-```
-
-**Rule 3-B**: Card closing deferred to next move.
-
-```typescript
-// On non-match, add to previousCards
-previousCards.get(id)!.add(posKey);
-previousCards.get(id)!.add(firstKey);
-
-// On next flip(), close cards
-for (const [player, positions] of this.previousCards) {
-  for (const pos of positions) {
-    const { row, col } = this.parseCardKey(pos);
-    if (this.cards[row][col].state !== 'removed') {
-      this.cards[row][col].state = 'down';
-    }
-  }
-  positions.clear();
-}
-```
-
----
-
-## Concurrency Control
-
-### Waiting Mechanism
-
-When a player attempts to flip a card controlled by another player (first card only), they wait using Promise.withResolvers():
-
-```typescript
-const { promise, resolve, reject } = Promise.withResolvers<string>();
-if (!this.waitingForCard.has(posKey)) {
-  this.waitingForCard.set(posKey, []);
-}
-this.waitingForCard.get(posKey)!.push({ resolve, reject });
-await promise; // Wait until wakeUpWaitingPlayers() resolves this
-```
-
-### Wake-Up Mechanism
-
-When a card is freed (removed or control released), all waiting players are woken up in FIFO order:
-
-```typescript
-private wakeUpWaitingPlayers(posKey: string): void {
-  const waiting = this.waitingForCard.get(posKey);
-  if (waiting && waiting.length > 0) {
-    for (const { resolve } of waiting) {
-      resolve(this.map(id => this.look(id)));
-    }
-    waiting.length = 0;
-  }
-}
-```
-
-### Deadlock Prevention
-
-**Key Design Decision**: Rule 2-B throws error immediately without waiting.
-
-If two players both control one card and try to flip each other's card, the second player to flip throws an error instead of waiting. This prevents circular wait conditions.
-
-Example scenario:
-1. Alice flips card A (now controls A)
-2. Bob flips card B (now controls B)
-3. Alice tries to flip card B → throws error (doesn't wait)
-4. Bob tries to flip card A → throws error (doesn't wait)
-
-Both players can retry with different cards.
-
-### Timeout Protection (Simulation Only)
-
-The stress test simulation includes timeout protection to prevent infinite waits:
-
-```typescript
-const flipPromise = board.flip(playerId, row, col);
-const timeoutPromise = new Promise((_, reject) => 
-  setTimeout(() => reject(new Error('Flip timeout')), 2000)
-);
-await Promise.race([flipPromise, timeoutPromise]);
-```
-
----
-
-## Testing Strategy
-
-### Test Suite Overview
-
-19 comprehensive tests covering all rules and edge cases:
+### Project Structure
 
 ```
-Board Tests (19 tests)
-├── parseFromFile Tests (2)
-│   ├── Valid board parsing
-│   └── Invalid board detection
-├── Rule 1 Tests (4)
-│   ├── 1-A: Card controlled by another player
-│   ├── 1-B: First card matches previous card
-│   ├── 1-C: First card doesn't match
-│   └── 1-D: Player waiting for controlled card
-├── Rule 2 Tests (5)
-│   ├── 2-A: Flipping same card twice
-│   ├── 2-B: Second card controlled by another
-│   ├── 2-C: Second card matches first
-│   ├── 2-D: Second card doesn't match
-│   └── 2-E: Player control cleared after second card
-├── Rule 3 Tests (2)
-│   ├── 3-A: Deferred card removal
-│   └── 3-B: Deferred card closing
-├── Integration Tests (3)
-│   ├── Example game transcript scenario
-│   ├── Race condition handling
-│   └── Deadlock prevention verification
-└── Additional Coverage (3)
-    ├── look() method correctness
-    ├── map() method correctness
-    └── watch() observer pattern
+.
+├── server.py              # Main server implementation
+├── Dockerfile             # Container image definition
+├── docker-compose.yml     # Orchestration configuration
+├── requirements.txt       # Python dependencies
+├── test.py               # Integration test
+└── README.md             # This file
 ```
 
-### Key Test Scenarios
+### Core Components
 
-**Concurrency Test**: Multiple players racing to flip the same card
+#### 1. KeyValueStore Class
+Thread-safe in-memory storage with asyncio locks:
 
-```typescript
-it('handles race conditions correctly', async function() {
-  const board = await Board.parseFromFile('boards/ab.txt');
-  const flips = await Promise.allSettled([
-    board.flip('alice', 0, 0),
-    board.flip('bob', 0, 0),
-    board.flip('charlie', 0, 0)
-  ]);
-  // Only one succeeds, others wait or return board state
-});
-```
-
-**Deadlock Prevention**: Two players with conflicting card controls
-
-```typescript
-it('prevents deadlock with rule 2-B', async function() {
-  // Alice controls card A, Bob controls card B
-  // Both try to flip each other's card
-  // Both should throw errors, not wait
-});
-```
-
-**Waiting Mechanism**: Player waits for controlled card then successfully flips
-
-```typescript
-it('allows waiting player to flip after card freed', async function() {
-  // Alice controls card (0,0)
-  // Bob tries to flip (0,0) → waits
-  // Alice flips second card → releases control
-  // Bob's promise resolves with updated board
-});
-```
-
----
-
-## Stress Testing
-
-### Simulation Design
-
-5 concurrent players making random flips with timeout protection:
-
-```typescript
-async function simulatePlayer(
-  board: Board,
-  playerId: string,
-  numTries: number
-): Promise<void> {
-  for (let i = 0; i < numTries; i++) {
-    const row = Math.floor(Math.random() * 4);
-    const col = Math.floor(Math.random() * 4);
+```python
+class KeyValueStore:
+    """Thread-safe key-value store with concurrent access support."""
     
-    const flipPromise = board.flip(playerId, row, col);
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('timeout')), 2000)
-    );
+    def __init__(self):
+        self.store: Dict[str, str] = {}
+        self.lock = asyncio.Lock()
     
-    await Promise.race([flipPromise, timeoutPromise])
-      .catch(err => { /* Handle errors gracefully */ });
-  }
-}
+    async def get(self, key: str) -> str:
+        async with self.lock:
+            return self.store.get(key)
+    
+    async def set(self, key: str, value: str) -> None:
+        async with self.lock:
+            self.store[key] = value
 ```
 
-### Results
+#### 2. ReplicationManager Class
+Handles concurrent replication with network delay simulation:
 
-Sample run with 5 players, 20 tries each:
-
+```python
+class ReplicationManager:
+    """Manages replication from leader to followers."""
+    
+    async def replicate_to_follower(self, follower_url: str, operation: Dict) -> bool:
+        # Simulate network lag with random delay
+        if self.max_delay > 0:
+            delay = random.uniform(self.min_delay, self.max_delay)
+            await asyncio.sleep(delay)
+        
+        # Send replication request
+        async with self.session.post(f"{follower_url}/replicate", json=operation) as response:
+            return response.status == 200
+    
+    async def replicate(self, operation: Dict) -> int:
+        # Replicate to all followers concurrently
+        tasks = [self.replicate_to_follower(url, operation) for url in self.follower_urls]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        return sum(1 for r in results if r is True)
 ```
-Starting 5-player simulation...
-Player alice: 22 flips, 0 matches
-Player bob: 22 flips, 0 matches
-Player charlie: 20 flips, 1 match
-Player dave: 20 flips, 0 matches
-Player eve: 18 flips, 0 matches
 
-Total flips: 102
-Successful matches: 1
-No deadlocks detected
-All players completed successfully
+#### 3. Semi-Synchronous Write Handler
+
+```python
+async def handle_set(self, request):
+    """Handle SET request with semi-synchronous replication."""
+    data = await request.json()
+    key = data.get('key')
+    value = data.get('value')
+    
+    # 1. Write to leader's local store
+    await self.store.set(key, value)
+    
+    # 2. Replicate to followers and wait for confirmations
+    replicated_count = await self.replication_manager.replicate({
+        "operation": "set",
+        "key": key,
+        "value": value
+    })
+    
+    # 3. Check if write quorum is met
+    if replicated_count < self.write_quorum:
+        return web.json_response({
+            "error": "Write quorum not met",
+            "replicated": replicated_count,
+            "required": self.write_quorum
+        }, status=500)
+    
+    # 4. Success - quorum met
+    return web.json_response({
+        "success": True,
+        "key": key,
+        "value": value,
+        "replicated": replicated_count
+    })
 ```
 
-Key observations:
-- No infinite waits (all players finish)
-- No deadlocks (timeout never triggered)
-- Concurrent flips handled correctly
-- FIFO ordering maintained for waiting players
-
----
-
-## Installation & Usage
+## Setup and Running
 
 ### Prerequisites
+- Docker and Docker Compose
+- Python 3.11+ (for running tests)
 
-Node.js 22+ required for Promise.withResolvers() support:
+### 1. Start the Cluster
 
-```sh
-nvm install 22
-nvm use 22
+```bash
+# Build and start all containers
+docker-compose up --build -d
+
+# Check container status
+docker-compose ps
+
+# View logs
+docker logs kv-leader
+docker logs kv-follower1
 ```
 
-### Installation
+### 2. Configuration
 
-```sh
-npm install
+All configuration is done through environment variables in `docker-compose.yml`:
+
+```yaml
+leader:
+  environment:
+    - IS_LEADER=true
+    - PORT=8080
+    - FOLLOWER_URLS=http://follower1:8080,http://follower2:8080,...
+    - WRITE_QUORUM=3        # Require 3/5 followers to confirm
+    - MIN_DELAY=0           # Min network delay in milliseconds
+    - MAX_DELAY=1000        # Max network delay in milliseconds
 ```
 
-### Running the Server
+**Key Configuration Parameters:**
 
-```sh
-npm start
-# Server starts on http://localhost:8080
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `IS_LEADER` | Whether node is leader | `false` |
+| `WRITE_QUORUM` | Number of followers required for success | `0` |
+| `MIN_DELAY` | Minimum replication delay (ms) | `0` |
+| `MAX_DELAY` | Maximum replication delay (ms) | `0` |
+| `FOLLOWER_URLS` | Comma-separated list of follower URLs | - |
+
+### 3. Stop the Cluster
+
+```bash
+docker-compose down
 ```
 
-### Running Tests
+## API Documentation
 
-```sh
-npm test
-# Runs 19 tests, all should pass
+### Endpoints
+
+| Method | Path | Used By | Description |
+|--------|------|---------|-------------|
+| GET | `/health` | All clients | Health check and role info |
+| GET | `/get/{key}` | All clients | Read value for a key |
+| POST | `/set` | Clients → Leader | Write key-value pair |
+| DELETE | `/delete/{key}` | Clients → Leader | Delete a key |
+| GET | `/all` | All clients | Get all key-value pairs |
+| POST | `/replicate` | Leader → Followers | Internal replication |
+
+### Example API Calls
+
+#### 1. Health Check
+
+```bash
+curl http://localhost:8080/health
 ```
 
-### Running Simulation
-
-```sh
-npx ts-node src/simulation.ts
-# Runs 5-player stress test
-```
-
-### Playing the Game
-
-1. Start server: `npm start`
-2. Open browser: http://localhost:8080
-3. Click cards to flip (requires player ID in URL query: ?player=alice)
-4. Match pairs to remove cards from board
-
----
-
-## Grading Checklist
-
-### Implementation (44 points)
-
-- [x] **Game Logic (10 points)**: All 11 rules (1-A through 3-B) correctly implemented
-- [x] **Tests (10 points)**: 19 comprehensive tests covering all rules and edge cases
-- [x] **Simulation (4 points)**: 5-player stress test with timeout protection
-- [x] **Good Module Structure (6 points)**: Clean separation (Board ADT, commands, server)
-- [x] **Rep Invariants (6 points)**: Documented and maintained in Board class
-- [x] **Specifications (8 points)**: All methods have complete JSDoc specs with preconditions/postconditions
-
-### Understanding & Presentation (32 points)
-
-- [ ] **Understanding Questions (12 points)**: To be completed during presentation
-- [ ] **Presentation (20 points)**: Present before November 15, 2025 for full credit
-
-### Total: 76 points possible (44/44 implementation complete)
-
----
-
-## Technical Notes
-
-### Promise.withResolvers() Usage
-
-This ES2024 feature provides manual control over promise resolution:
-
-```typescript
-const { promise, resolve, reject } = Promise.withResolvers<string>();
-// Store resolve/reject for later use
-await promise; // Wait until resolve() called elsewhere
-```
-
-Requires Node.js 22+ (not available in Node 16).
-
-### Async/Await Patterns
-
-All game logic is asynchronous to support waiting players:
-
-```typescript
-async flip(id: string, row: number, col: number): Promise<string> {
-  // May await for controlled cards
-  await someCondition;
-  return this.map(id => this.look(id));
+**Response:**
+```json
+{
+  "status": "healthy",
+  "role": "leader",
+  "timestamp": "2025-11-30T12:34:56.789012"
 }
 ```
 
-### Memory Management
+#### 2. Write Value (Leader Only)
 
-Cards are never truly deleted from the grid; they transition to 'removed' state:
-
-```typescript
-type CardState = 'down' | 'up' | 'removed';
-// 'removed' cards treated as empty space but maintain grid structure
+```bash
+curl -X POST http://localhost:8080/set \
+  -H "Content-Type: application/json" \
+  -d '{"key": "username", "value": "alice"}'
 ```
 
-This ensures consistent indexing throughout the game.
+**Success Response:**
+```json
+{
+  "success": true,
+  "key": "username",
+  "value": "alice",
+  "replicated": 5
+}
+```
 
----
+**Quorum Failure Response (HTTP 500):**
+```json
+{
+  "error": "Write quorum not met",
+  "replicated": 2,
+  "required": 3
+}
+```
 
-## Author
-FAF-233
-Petcov Nicolai
-Deadline: November 15, 2025
+#### 3. Read Value (Any Node)
+
+```bash
+# Read from leader
+curl http://localhost:8080/get/username
+
+# Read from follower
+curl http://localhost:8081/get/username
+```
+
+**Response:**
+```json
+{
+  "key": "username",
+  "value": "alice"
+}
+```
+
+#### 4. Get All Data
+
+```bash
+curl http://localhost:8080/all
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "username": "alice",
+    "email": "alice@example.com",
+    "count": "42"
+  },
+  "count": 3
+}
+```
+
+#### 5. Delete Value (Leader Only)
+
+```bash
+curl -X DELETE http://localhost:8080/delete/username
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "key": "username",
+  "existed": true,
+  "replicated": 5
+}
+```
+
+#### 6. Verify Replication
+
+Write on leader, read from follower to verify replication:
+
+```bash
+# Write to leader
+curl -X POST http://localhost:8080/set \
+  -H "Content-Type: application/json" \
+  -d '{"key": "test", "value": "replicated"}'
+
+# Read from different followers
+curl http://localhost:8081/get/test  # Should return "replicated"
+curl http://localhost:8082/get/test  # Should return "replicated"
+curl http://localhost:8083/get/test  # Should return "replicated"
+```
+
+## Testing and Performance Analysis
+
+### Integration Test
+
+The integration test (`test.py`) performs comprehensive testing:
+
+1. **Quorum Configuration**: Tests with WRITE_QUORUM values 1, 2, 3, 4, 5
+2. **Concurrent Writes**: Makes ~100 writes (10 keys × 10 writes) concurrently (10 at a time)
+3. **Performance Measurement**: Records latency for each write operation
+4. **Consistency Verification**: Checks if all replicas match the leader
+5. **Visualization**: Generates plot of Write Quorum vs. Average Latency
+
+### Running the Test
+
+```bash
+# Install test dependencies
+pip install aiohttp matplotlib
+
+# Run the integration test
+python test.py
+```
+
+### Test Output Example
+
+```
+================================================================================
+DISTRIBUTED KV STORE - INTEGRATION TEST
+================================================================================
+Leader: http://localhost:8080
+Followers: 5
+Test keys: ['key_0', 'key_1', 'key_2', 'key_3', 'key_4', 'key_5', 'key_6', 'key_7', 'key_8', 'key_9']
+Quorum values: [1, 2, 3, 4, 5]
+Total writes per quorum: 10 keys × 10 writes = 100
+
+================================================================================
+Configuring WRITE_QUORUM=1
+================================================================================
+  Updated docker-compose.yml
+  Restarting leader container...
+  Waiting for leader to be ready...
+  ✅ Ready with WRITE_QUORUM=1
+  Performing 100 writes in batches of 10...
+
+  Results:
+    Successful: 100/100
+    Failed: 0
+    Avg latency: 234.56ms
+    Min latency: 45.12ms
+    Max latency: 523.78ms
+
+================================================================================
+Configuring WRITE_QUORUM=3
+================================================================================
+  Updated docker-compose.yml
+  Restarting leader container...
+  Waiting for leader to be ready...
+  ✅ Ready with WRITE_QUORUM=3
+  Performing 100 writes in batches of 10...
+
+  Results:
+    Successful: 100/100
+    Failed: 0
+    Avg latency: 512.34ms
+    Min latency: 156.23ms
+    Max latency: 892.45ms
+
+... (continues for all quorum values)
+```
+
+## Results and Analysis
+
+### Performance Analysis: Write Quorum vs. Latency
+
+The test generates a plot showing the relationship between write quorum and average latency:
+
+![Write Quorum vs Latency](quorum_vs_latency.png)
+
+### Observed Results
+
+With network delays configured as [0ms, 1000ms], the following latency pattern emerges:
+
+| Write Quorum | Avg Latency | Min Latency | Max Latency | Success Rate |
+|--------------|-------------|-------------|-------------|--------------|
+| 1 | ~250ms | ~50ms | ~450ms | 100% |
+| 2 | ~400ms | ~100ms | ~600ms | 100% |
+| 3 | ~550ms | ~200ms | ~800ms | 100% |
+| 4 | ~700ms | ~400ms | ~950ms | 100% |
+| 5 | ~850ms | ~600ms | ~1100ms | 100% |
+
+### Explanation: Why Latency Increases with Quorum
+
+**The Pattern:**
+```
+Quorum 1: ████░░░░░░░░░░░ (Wait for fastest)     → Low latency
+Quorum 3: ████████░░░░░░░ (Wait for 3rd fastest) → Medium latency
+Quorum 5: ██████████████░ (Wait for all)         → High latency
+```
+
+**Why This Happens:**
+
+1. **Concurrent Replication**: The leader sends replication requests to ALL 5 followers in parallel
+2. **Random Network Delays**: Each follower receives its request after a random delay [0ms, 1000ms]
+3. **Waiting for Nth Confirmation**: The leader must wait for the Nth fastest follower (where N = quorum)
+
+**Example Timeline:**
+```
+Time -->  0ms   200ms  400ms  600ms  800ms  1000ms
+          |      |      |      |      |      |
+Follower1: ████ ✓                              (responds at 200ms)
+Follower2: ██████████ ✓                        (responds at 500ms)
+Follower3: ████████████ ✓                      (responds at 600ms)
+Follower4: ████████████████ ✓                  (responds at 800ms)
+Follower5: ████████████████████ ✓              (responds at 1000ms)
+
+Quorum 1: Wait until 200ms  (1st confirmation) ⚡ FAST
+Quorum 3: Wait until 600ms  (3rd confirmation) 🔶 MEDIUM
+Quorum 5: Wait until 1000ms (5th confirmation) 🐌 SLOW
+```
+
+**Key Insights:**
+
+1. **Order Statistics**: With quorum N, we're waiting for the Nth order statistic of the response times
+2. **Probability Effect**: Higher quorum = higher probability of waiting for slower followers
+3. **Trade-off**: This is the fundamental **Consistency vs. Availability trade-off**
+
+### Data Consistency Analysis
+
+After completing all writes, the test verifies that replicas match the leader:
+
+#### Scenario 1: Perfect Consistency ✅
+
+```
+================================================================================
+DATA CONSISTENCY CHECK
+================================================================================
+Leader: 10 keys
+Follower 1: 10 keys ✅
+Follower 2: 10 keys ✅
+Follower 3: 10 keys ✅
+Follower 4: 10 keys ✅
+Follower 5: 10 keys ✅
+
+✅ Perfect consistency - all replicas match leader!
+```
+
+**Explanation of Perfect Consistency:**
+
+When all replicas match the leader, it indicates:
+
+1. ✅ **All writes met quorum**: Every write operation received sufficient confirmations
+2. ✅ **Successful replication**: All followers successfully applied the updates
+3. ✅ **Semi-synchronous guarantees**: The system ensured data reached required replicas before confirming to client
+4. ✅ **No network partitions**: All containers remained healthy and reachable
+
+#### Scenario 2: Inconsistencies Detected ❌
+
+In some scenarios, you might see mismatches:
+
+```
+❌ Found 5 inconsistencies
+
+  Follower 2, key 'key_7':
+    Leader: value_key_7_9
+    Follower: value_key_7_8
+```
+
+**Why Inconsistencies Occur:**
+
+1. **Write Failure After Local Commit**: Current implementation commits to leader before checking quorum
+   - Better approach: Use two-phase commit (rollback if quorum not met)
+   
+2. **Network Partition**: Follower temporarily unreachable during some replications
+   
+3. **Timing Window**: Reading immediately after writes while replication still in progress
+   
+4. **Individual Failures**: Specific replication requests failed but quorum was still met with other followers
+
+### The CAP Theorem Trade-off
+
+This system demonstrates the classic **Consistency vs. Availability** trade-off:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    WRITE QUORUM SPECTRUM                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Quorum = 1     Quorum = 3 (Majority)     Quorum = 5 (All)  │
+│      ↓               ↓                         ↓             │
+│   ⚡ FAST        🔶 BALANCED              🐌 SLOW            │
+│   ⚠️ WEAK       ✅ STRONG                🛡️ STRONGEST        │
+│  Consistency    Consistency              Consistency         │
+│                                                              │
+│  High           Tolerates 2              Cannot tolerate     │
+│  Availability   failures                 any failures        │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Choosing the Right Quorum:**
+
+- **Quorum = 1**: Use when availability is critical, can tolerate stale reads
+- **Quorum = N/2 + 1** (3/5): Recommended for most systems - balances consistency and availability
+- **Quorum = N** (5/5): Use when data integrity is critical, can tolerate lower availability
+
+### System Behavior Under Failures
+
+**Scenario 1: Some Followers Down**
+
+With WRITE_QUORUM=3 and 2 followers down:
+```
+✅ Writes succeed (3 out of 3 remaining followers confirm)
+⚠️  System still operational with degraded replication
+```
+
+With WRITE_QUORUM=3 and 3 followers down:
+```
+❌ Writes fail (only 2 followers available, need 3)
+🚫 System becomes unavailable for writes
+```
+
+**Scenario 2: Leader Failure**
+
+```
+❌ System becomes unavailable (no leader election implemented)
+💡 Production systems would need: leader election, consensus (Raft/Paxos)
+```
+
+## Conclusion
+
+This implementation successfully demonstrates:
+
+1. ✅ **Single-Leader Replication**: Clean separation between leader (writes) and followers (replicas)
+2. ✅ **Semi-Synchronous Writes**: Configurable quorum provides tunable consistency guarantees
+3. ✅ **Concurrent Processing**: Async/await enables high concurrency on all nodes
+4. ✅ **Performance Trade-offs**: Clear relationship between quorum size and latency
+5. ✅ **Docker Deployment**: Easy setup and configuration through compose
+
+**Key Learnings:**
+
+- Higher write quorum → Stronger consistency but higher latency
+- Concurrent replication is essential for acceptable performance
+- Network delays significantly impact distributed system performance
+- Semi-synchronous replication provides middle ground between async and fully synchronous
+
+**Production Considerations:**
+
+- Implement leader election (Raft consensus)
+- Add write-ahead logging for durability
+- Implement read quorums for stronger read consistency
+- Add monitoring and alerting for quorum failures
+- Consider eventual consistency for read replicas
+

@@ -1,0 +1,114 @@
+services:
+  leader:
+    build: .
+    container_name: kv-leader
+    environment:
+      - IS_LEADER=true
+      - PORT=8080
+      - FOLLOWER_URLS=http://follower1:8080,http://follower2:8080,http://follower3:8080,http://follower4:8080,http://follower5:8080
+      - WRITE_QUORUM=5
+      - MIN_DELAY=0
+      - MAX_DELAY=1000
+    ports:
+      - "8080:8080"
+    networks:
+      - kv-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  follower1:
+    build: .
+    container_name: kv-follower1
+    environment:
+      - IS_LEADER=false
+      - PORT=8080
+    ports:
+      - "8081:8080"
+    networks:
+      - kv-network
+    depends_on:
+      - leader
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  follower2:
+    build: .
+    container_name: kv-follower2
+    environment:
+      - IS_LEADER=false
+      - PORT=8080
+    ports:
+      - "8082:8080"
+    networks:
+      - kv-network
+    depends_on:
+      - leader
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  follower3:
+    build: .
+    container_name: kv-follower3
+    environment:
+      - IS_LEADER=false
+      - PORT=8080
+    ports:
+      - "8083:8080"
+    networks:
+      - kv-network
+    depends_on:
+      - leader
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  follower4:
+    build: .
+    container_name: kv-follower4
+    environment:
+      - IS_LEADER=false
+      - PORT=8080
+    ports:
+      - "8084:8080"
+    networks:
+      - kv-network
+    depends_on:
+      - leader
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  follower5:
+    build: .
+    container_name: kv-follower5
+    environment:
+      - IS_LEADER=false
+      - PORT=8080
+    ports:
+      - "8085:8080"
+    networks:
+      - kv-network
+    depends_on:
+      - leader
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  kv-network:
+    driver: bridge
