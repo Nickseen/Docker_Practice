@@ -83,7 +83,7 @@ class ReplicationManager:
     async def replicate(self, operation: Dict, required_quorum: int = 1) -> int:
         """
         Replicate to followers and return as soon as quorum is reached.
-        Does NOT wait for all followers - returns early when enough confirm.
+        Does NOT wait for all followers - returns early and CANCELS remaining tasks.
         """
         if not self.follower_urls:
             return 0
@@ -102,6 +102,10 @@ class ReplicationManager:
                 if result is True:
                     success_count += 1
                     if success_count >= required_quorum:
+                        # Cancel remaining tasks - they won't replicate!
+                        for task in tasks:
+                            if not task.done():
+                                task.cancel()
                         return success_count
             except Exception as e:
                 logger.error(f"Replication task failed: {e}")

@@ -380,85 +380,140 @@ Total writes per quorum: 10 keys × 10 writes = 100
 Configuring WRITE_QUORUM=1
 ================================================================================
   Updated docker-compose.yml
-  Restarting leader container...
-  Waiting for leader to be ready...
+  Restarting ALL containers (clearing data)...
+  Waiting for cluster to be ready...
   ✅ Ready with WRITE_QUORUM=1
   Performing 100 writes in batches of 10...
 
   Results:
     Successful: 100/100
     Failed: 0
-    Avg latency: 184.39ms
-    Min latency: 5.03ms
-    Max latency: 682.42ms
+    Avg latency: 201.42ms
+    Min latency: 4.94ms
+    Max latency: 679.94ms
+
+  🔍 Checking consistency for QUORUM=1...
+
+================================================================================
+DATA CONSISTENCY CHECK
+================================================================================
+  (checking immediately without waiting for background replication)
+Leader: 10 keys
+Follower 1: 9 keys ✅
+Follower 2: 9 keys ✅
+Follower 3: 10 keys ✅
+Follower 4: 10 keys ✅
+Follower 5: 9 keys ✅
 
 ================================================================================
 Configuring WRITE_QUORUM=2
 ================================================================================
   Updated docker-compose.yml
-  Restarting leader container...
-  Waiting for leader to be ready...
+  Restarting ALL containers (clearing data)...
+  Waiting for cluster to be ready...
   ✅ Ready with WRITE_QUORUM=2
   Performing 100 writes in batches of 10...
 
   Results:
     Successful: 100/100
     Failed: 0
-    Avg latency: 353.47ms
-    Min latency: 21.78ms
-    Max latency: 741.96ms
+    Avg latency: 339.23ms
+    Min latency: 44.21ms
+    Max latency: 704.91ms
+
+  🔍 Checking consistency for QUORUM=2...
+
+================================================================================
+DATA CONSISTENCY CHECK
+================================================================================
+  (checking immediately without waiting for background replication)
+Leader: 10 keys
+Follower 1: 10 keys ✅
+Follower 2: 10 keys ✅
+Follower 3: 10 keys ✅
+Follower 4: 10 keys ✅
+Follower 5: 10 keys ✅
 
 ================================================================================
 Configuring WRITE_QUORUM=3
 ================================================================================
   Updated docker-compose.yml
-  Restarting leader container...
-  Waiting for leader to be ready...
+  Restarting ALL containers (clearing data)...
+  Waiting for cluster to be ready...
   ✅ Ready with WRITE_QUORUM=3
   Performing 100 writes in batches of 10...
 
   Results:
     Successful: 100/100
     Failed: 0
-    Avg latency: 504.41ms
-    Min latency: 101.76ms
-    Max latency: 923.92ms
+    Avg latency: 501.60ms
+    Min latency: 43.61ms
+    Max latency: 929.34ms
+
+  🔍 Checking consistency for QUORUM=3...
+
+================================================================================
+DATA CONSISTENCY CHECK
+================================================================================
+  (checking immediately without waiting for background replication)
+Leader: 10 keys
+Follower 1: 10 keys ✅
+Follower 2: 10 keys ✅
+Follower 3: 10 keys ✅
+Follower 4: 10 keys ✅
+Follower 5: 10 keys ✅
 
 ================================================================================
 Configuring WRITE_QUORUM=4
 ================================================================================
   Updated docker-compose.yml
-  Restarting leader container...
-  Waiting for leader to be ready...
+  Restarting ALL containers (clearing data)...
+  Waiting for cluster to be ready...
   ✅ Ready with WRITE_QUORUM=4
   Performing 100 writes in batches of 10...
 
   Results:
     Successful: 100/100
     Failed: 0
-    Avg latency: 650.25ms
-    Min latency: 195.60ms
-    Max latency: 979.20ms
+    Avg latency: 596.59ms
+    Min latency: 131.25ms
+    Max latency: 989.73ms
+
+  🔍 Checking consistency for QUORUM=4...
+
+================================================================================
+DATA CONSISTENCY CHECK
+================================================================================
+  (checking immediately without waiting for background replication)
+Leader: 10 keys
+Follower 1: 10 keys ✅
+Follower 2: 10 keys ✅
+Follower 3: 10 keys ✅
+Follower 4: 10 keys ✅
+Follower 5: 10 keys ✅
 
 ================================================================================
 Configuring WRITE_QUORUM=5
 ================================================================================
   Updated docker-compose.yml
-  Restarting leader container...
-  Waiting for leader to be ready...
+  Restarting ALL containers (clearing data)...
+  Waiting for cluster to be ready...
   ✅ Ready with WRITE_QUORUM=5
   Performing 100 writes in batches of 10...
 
   Results:
     Successful: 100/100
     Failed: 0
-    Avg latency: 850.37ms
-    Min latency: 416.76ms
-    Max latency: 1005.18ms
+    Avg latency: 837.72ms
+    Min latency: 431.79ms
+    Max latency: 1004.46ms
+
+  🔍 Checking consistency for QUORUM=5...
 
 ================================================================================
 DATA CONSISTENCY CHECK
 ================================================================================
+  (checking immediately without waiting for background replication)
 Leader: 10 keys
 Follower 1: 10 keys ✅
 Follower 2: 10 keys ✅
@@ -473,21 +528,21 @@ PERFORMANCE SUMMARY: Write Quorum vs. Average Latency
 ┌─────────┬──────────────┬──────────────┬──────────────┬──────────┐
 │ Quorum  │ Avg Latency  │ Min Latency  │ Max Latency  │ Success  │
 ├─────────┼──────────────┼──────────────┼──────────────┼──────────┤
-│    1    │    184.39ms  │      5.03ms  │    682.42ms  │  100.0%  │
-│    2    │    353.47ms  │     21.78ms  │    741.96ms  │  100.0%  │
-│    3    │    504.41ms  │    101.76ms  │    923.92ms  │  100.0%  │
-│    4    │    650.25ms  │    195.60ms  │    979.20ms  │  100.0%  │
-│    5    │    850.37ms  │    416.76ms  │   1005.18ms  │  100.0%  │
+│    1    │    201.42ms  │      4.94ms  │    679.94ms  │  100.0%  │
+│    2    │    339.23ms  │     44.21ms  │    704.91ms  │  100.0%  │
+│    3    │    501.60ms  │     43.61ms  │    929.34ms  │  100.0%  │
+│    4    │    596.59ms  │    131.25ms  │    989.73ms  │  100.0%  │
+│    5    │    837.72ms  │    431.79ms  │   1004.46ms  │  100.0%  │
 └─────────┴──────────────┴──────────────┴──────────────┴──────────┘
 
 ================================================================================
 VISUAL COMPARISON (Average Latency)
 ================================================================================
-Quorum 1: █████████████ 184.39ms
-Quorum 2: ████████████████████████ 353.47ms
-Quorum 3: ███████████████████████████████████ 504.41ms
-Quorum 4: █████████████████████████████████████████████ 650.25ms
-Quorum 5: ████████████████████████████████████████████████████████████ 850.37ms
+Quorum 1: ██████████████ 201.42ms
+Quorum 2: ████████████████████████ 339.23ms
+Quorum 3: ███████████████████████████████████ 501.60ms
+Quorum 4: ██████████████████████████████████████████ 596.59ms
+Quorum 5: ████████████████████████████████████████████████████████████ 837.72ms
 
 ================================================================================
 GENERATING PLOT FILE
@@ -499,6 +554,13 @@ RESULTS EXPLANATION
 ================================================================================
 
 📝 DATA CONSISTENCY:
+--------------------------------------------------------------------------------
+✅ Perfect consistency - all replicas match leader!
+
+================================================================================
+✅ TEST COMPLETED
+================================================================================
+```📝 DATA CONSISTENCY:
 --------------------------------------------------------------------------------
 ✅ Perfect consistency - all replicas match leader!
 
@@ -521,11 +583,13 @@ With network delays configured as [0ms, 1000ms], the following latency pattern e
 
 | Write Quorum | Avg Latency | Min Latency | Max Latency | Success Rate |
 |--------------|-------------|-------------|-------------|--------------|
-| 1 | 184.39ms | 5.03ms | 682.42ms | 100% |
-| 2 | 353.47ms | 21.78ms | 741.96ms | 100% |
-| 3 | 504.41ms | 101.76ms | 923.92ms | 100% |
-| 4 | 650.25ms | 195.60ms | 979.20ms | 100% |
-| 5 | 850.37ms | 416.76ms | 1005.18ms | 100% |
+| 1 | 201.42ms | 4.94ms | 679.94ms | 100% |
+| 2 | 339.23ms | 44.21ms | 704.91ms | 100% |
+| 3 | 501.60ms | 43.61ms | 929.34ms | 100% |
+| 4 | 596.59ms | 131.25ms | 989.73ms | 100% |
+| 5 | 837.72ms | 431.79ms | 1004.46ms | 100% |
+
+**Key observation:** With QUORUM=1, some followers may not receive all data (e.g., Follower 1: 9 keys instead of 10), demonstrating the consistency trade-off.
 
 ### Explanation: Why Latency Increases with Quorum
 

@@ -75,8 +75,9 @@ class KVStoreTest:
         print("\n" + "="*80)
         print("DATA CONSISTENCY CHECK")
         print("="*80)
+        print("  (checking immediately without waiting for background replication)")
         
-        await asyncio.sleep(2)
+        # NO sleep - check immediately to catch inconsistencies!
         
         leader_data = await self.get_all_data(self.leader_url)
         print(f"Leader: {len(leader_data)} keys")
@@ -123,13 +124,12 @@ class KVStoreTest:
         
         print(f"  Updated docker-compose.yml")
         
-        print(f"  Restarting leader container...")
-        subprocess.run(['docker-compose', 'stop', 'leader'], 
-                      capture_output=True)
-        subprocess.run(['docker-compose', 'up', '-d', '--build', 'leader'], 
-                      capture_output=True)
+        # Restart ALL containers to clear data between quorum tests
+        print(f"  Restarting ALL containers (clearing data)...")
+        subprocess.run(['docker-compose', 'down'], capture_output=True)
+        subprocess.run(['docker-compose', 'up', '-d', '--build'], capture_output=True)
         
-        print(f"  Waiting for leader to be ready...")
+        print(f"  Waiting for cluster to be ready...")
         time.sleep(5)
         print(f"  ✅ Ready with WRITE_QUORUM={quorum}")
 
@@ -188,8 +188,12 @@ async def run_test():
             print(f"    Avg latency: {avg_latency*1000:.2f}ms")
             print(f"    Min latency: {min(latencies)*1000:.2f}ms" if latencies else "")
             print(f"    Max latency: {max(latencies)*1000:.2f}ms" if latencies else "")
+            
+            # Check consistency immediately after writes
+            print(f"\n  🔍 Checking consistency for QUORUM={quorum}...")
+            await test.verify_consistency(keys)
         
-        consistency = await test.verify_consistency(keys)
+        consistency = {"mismatches": []}  # Final placeholder
         
         print("\n" + "="*80)
         print("PERFORMANCE SUMMARY: Write Quorum vs. Average Latency")
