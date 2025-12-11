@@ -388,9 +388,25 @@ Configuring WRITE_QUORUM=1
   Results:
     Successful: 100/100
     Failed: 0
-    Avg latency: 234.56ms
-    Min latency: 45.12ms
-    Max latency: 523.78ms
+    Avg latency: 184.39ms
+    Min latency: 5.03ms
+    Max latency: 682.42ms
+
+================================================================================
+Configuring WRITE_QUORUM=2
+================================================================================
+  Updated docker-compose.yml
+  Restarting leader container...
+  Waiting for leader to be ready...
+  ✅ Ready with WRITE_QUORUM=2
+  Performing 100 writes in batches of 10...
+
+  Results:
+    Successful: 100/100
+    Failed: 0
+    Avg latency: 353.47ms
+    Min latency: 21.78ms
+    Max latency: 741.96ms
 
 ================================================================================
 Configuring WRITE_QUORUM=3
@@ -404,11 +420,91 @@ Configuring WRITE_QUORUM=3
   Results:
     Successful: 100/100
     Failed: 0
-    Avg latency: 512.34ms
-    Min latency: 156.23ms
-    Max latency: 892.45ms
+    Avg latency: 504.41ms
+    Min latency: 101.76ms
+    Max latency: 923.92ms
 
-... (continues for all quorum values)
+================================================================================
+Configuring WRITE_QUORUM=4
+================================================================================
+  Updated docker-compose.yml
+  Restarting leader container...
+  Waiting for leader to be ready...
+  ✅ Ready with WRITE_QUORUM=4
+  Performing 100 writes in batches of 10...
+
+  Results:
+    Successful: 100/100
+    Failed: 0
+    Avg latency: 650.25ms
+    Min latency: 195.60ms
+    Max latency: 979.20ms
+
+================================================================================
+Configuring WRITE_QUORUM=5
+================================================================================
+  Updated docker-compose.yml
+  Restarting leader container...
+  Waiting for leader to be ready...
+  ✅ Ready with WRITE_QUORUM=5
+  Performing 100 writes in batches of 10...
+
+  Results:
+    Successful: 100/100
+    Failed: 0
+    Avg latency: 850.37ms
+    Min latency: 416.76ms
+    Max latency: 1005.18ms
+
+================================================================================
+DATA CONSISTENCY CHECK
+================================================================================
+Leader: 10 keys
+Follower 1: 10 keys ✅
+Follower 2: 10 keys ✅
+Follower 3: 10 keys ✅
+Follower 4: 10 keys ✅
+Follower 5: 10 keys ✅
+
+================================================================================
+PERFORMANCE SUMMARY: Write Quorum vs. Average Latency
+================================================================================
+
+┌─────────┬──────────────┬──────────────┬──────────────┬──────────┐
+│ Quorum  │ Avg Latency  │ Min Latency  │ Max Latency  │ Success  │
+├─────────┼──────────────┼──────────────┼──────────────┼──────────┤
+│    1    │    184.39ms  │      5.03ms  │    682.42ms  │  100.0%  │
+│    2    │    353.47ms  │     21.78ms  │    741.96ms  │  100.0%  │
+│    3    │    504.41ms  │    101.76ms  │    923.92ms  │  100.0%  │
+│    4    │    650.25ms  │    195.60ms  │    979.20ms  │  100.0%  │
+│    5    │    850.37ms  │    416.76ms  │   1005.18ms  │  100.0%  │
+└─────────┴──────────────┴──────────────┴──────────────┴──────────┘
+
+================================================================================
+VISUAL COMPARISON (Average Latency)
+================================================================================
+Quorum 1: █████████████ 184.39ms
+Quorum 2: ████████████████████████ 353.47ms
+Quorum 3: ███████████████████████████████████ 504.41ms
+Quorum 4: █████████████████████████████████████████████ 650.25ms
+Quorum 5: ████████████████████████████████████████████████████████████ 850.37ms
+
+================================================================================
+GENERATING PLOT FILE
+================================================================================
+✅ Plot saved as 'quorum_vs_latency.png'
+
+================================================================================
+RESULTS EXPLANATION
+================================================================================
+
+📝 DATA CONSISTENCY:
+--------------------------------------------------------------------------------
+✅ Perfect consistency - all replicas match leader!
+
+================================================================================
+✅ TEST COMPLETED
+================================================================================
 ```
 
 ## Results and Analysis
@@ -425,11 +521,11 @@ With network delays configured as [0ms, 1000ms], the following latency pattern e
 
 | Write Quorum | Avg Latency | Min Latency | Max Latency | Success Rate |
 |--------------|-------------|-------------|-------------|--------------|
-| 1 | ~250ms | ~50ms | ~450ms | 100% |
-| 2 | ~400ms | ~100ms | ~600ms | 100% |
-| 3 | ~550ms | ~200ms | ~800ms | 100% |
-| 4 | ~700ms | ~400ms | ~950ms | 100% |
-| 5 | ~850ms | ~600ms | ~1100ms | 100% |
+| 1 | 184.39ms | 5.03ms | 682.42ms | 100% |
+| 2 | 353.47ms | 21.78ms | 741.96ms | 100% |
+| 3 | 504.41ms | 101.76ms | 923.92ms | 100% |
+| 4 | 650.25ms | 195.60ms | 979.20ms | 100% |
+| 5 | 850.37ms | 416.76ms | 1005.18ms | 100% |
 
 ### Explanation: Why Latency Increases with Quorum
 

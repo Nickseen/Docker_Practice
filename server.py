@@ -80,18 +80,32 @@ class ReplicationManager:
             logger.error(f"Error replicating to {follower_url}: {e}")
             return False
     
-    async def replicate(self, operation: Dict) -> int:
+    async def replicate(self, operation: Dict, required_quorum: int = 1) -> int:
+        """
+        Replicate to followers and return as soon as quorum is reached.
+        Does NOT wait for all followers - returns early when enough confirm.
+        """
         if not self.follower_urls:
             return 0
         
         tasks = [
-            self.replicate_to_follower(url, operation)
+            asyncio.create_task(self.replicate_to_follower(url, operation))
             for url in self.follower_urls
         ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        success_count = sum(1 for r in results if r is True)
-        logger.info(f"Replication completed: {success_count}/{len(self.follower_urls)} followers updated")
+        success_count = 0
+        
+        # Return as soon as quorum is reached (don't wait for all)
+        for coro in asyncio.as_completed(tasks):
+            try:
+                result = await coro
+                if result is True:
+                    success_count += 1
+                    if success_count >= required_quorum:
+                        return success_count
+            except Exception as e:
+                logger.error(f"Replication task failed: {e}")
+        
         return success_count
 
 
@@ -165,11 +179,14 @@ class KVServer:
             
             replicated_count = 0
             if self.replication_manager:
-                replicated_count = await self.replication_manager.replicate({
-                    "operation": "set",
-                    "key": key,
-                    "value": value
-                })
+                replicated_count = await self.replication_manager.replicate(
+                    {
+                        "operation": "set",
+                        "key": key,
+                        "value": value
+                    },
+                    required_quorum=self.write_quorum
+                )
                 
                 if replicated_count < self.write_quorum:
                     logger.warning(f"Write quorum not met: {replicated_count}/{self.write_quorum}")
@@ -204,10 +221,13 @@ class KVServer:
         
         replicated_count = 0
         if self.replication_manager:
-            replicated_count = await self.replication_manager.replicate({
-                "operation": "delete",
-                "key": key
-            })
+            replicated_count = await self.replication_manager.replicate(
+                {
+                    "operation": "delete",
+                    "key": key
+                },
+                required_quorum=self.write_quorum
+            )
             
             if replicated_count < self.write_quorum:
                 logger.warning(f"Write quorum not met: {replicated_count}/{self.write_quorum}")

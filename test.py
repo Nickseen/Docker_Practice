@@ -125,12 +125,12 @@ class KVStoreTest:
         
         print(f"  Restarting leader container...")
         subprocess.run(['docker-compose', 'stop', 'leader'], 
-                      capture_output=True, shell=True)
-        subprocess.run(['docker-compose', 'up', '-d', 'leader'], 
-                      capture_output=True, shell=True)
+                      capture_output=True)
+        subprocess.run(['docker-compose', 'up', '-d', '--build', 'leader'], 
+                      capture_output=True)
         
         print(f"  Waiting for leader to be ready...")
-        time.sleep(8)
+        time.sleep(5)
         print(f"  ✅ Ready with WRITE_QUORUM={quorum}")
 
 
